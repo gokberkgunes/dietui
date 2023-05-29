@@ -2,4 +2,5 @@ dietui
 obj/
 bin/
 data-tr
-src/scraper/scraper-info
+src/scraper/scrape-info
+src/scraper/otherdata/
