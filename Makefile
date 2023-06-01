@@ -12,7 +12,9 @@ OBJDIR = obj
 BINDIR = bin
 
 # Flags to the compiler
-CFLAGS = -Wall -Wextra #-Werror
+CFLAGS = -Wall -Wextra  -DNCURSES_WIDECHAR=1 #-Werror
+# NCURSES_WIDECHAR Ref. https://stackoverflow.com/a/68780239
+
 # Optimization level flag
 OPTFLAGS = -O2
 # Dependency flags to allow to detect header file changes.
