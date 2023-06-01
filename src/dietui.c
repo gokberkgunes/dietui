@@ -4,7 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <stdbool.h>
+#include <wchar.h>
+#include <locale.h>
 
 #define MAX(A, B) ((A) > (B) ? (A) : (B))
 #define MIN(A, B) ((A) < (B) ? (A) : (B))
@@ -32,17 +33,10 @@
 #define CLR_BG0 16
 #define CLR_BG1 17
 
-#define KEYUP    65
-#define KEYLEFT  68
-#define KEYDOWN  66
-#define KEYRIGHT 67
 #define KEYSPACE 32
 #define KEYDEL   80
 #define KEYESC   27
 
-//#define DEBUGGING
-
-// const int MAXITEM = 1000;
 static const int N_WINDOWS   = 2;
 static const int WIN_0_WIDTH = 30;
 static       int selwin      = 0;
@@ -146,18 +140,19 @@ delitem(iteminfo *item, winprop* winfo)
 	} else {
 		winfo->curline = 0;
 	}
-
 }
-void drawmenu(WINDOW *win, iteminfo *item, winprop* winfo)
+
+void
+drawmenu(WINDOW *win, iteminfo *item, winprop* winfo)
 {
-	int winwidth =  winfo->w;
-	int start = MAX(winfo->start, 0);
-	int highlight = (selwin == winfo->index) ? winfo->curline : -1;
+	int winwidth   =  winfo->w;
+	int start      = MAX(winfo->start, 0);
+	int highlight  = (selwin == winfo->index) ? winfo->curline : -1;
 	int menuheight = winfo->menuh;
-	int nitem = winfo->nitem;
+	int nitem      = winfo->nitem;
 
 	int pad;
-	int limit = MIN((start+menuheight), nitem);
+	int limit = MIN((start+menuheight), nitem); /* ensure list fits */
 
 	wclear(win);
 	for (int i = start; i < limit; i++) {
@@ -175,6 +170,61 @@ void drawmenu(WINDOW *win, iteminfo *item, winprop* winfo)
 		}
 		wprintw(win, "%s\n", item[i].name);
 	}
+	wrefresh(win);
+}
+
+void drwmain(WINDOW *win, iteminfo *item, winprop* winfo)
+{
+	int winwidth   =  winfo->w;
+	int start      = MAX(winfo->start, 0);
+	int highlight  = (selwin == winfo->index) ? winfo->curline : -1;
+	int menuheight = winfo->menuh;
+	int nitem      = winfo->nitem;
+
+	int limit = MIN((start+menuheight), nitem); /* ensure list fits */
+
+	/* iteminfo's variables */
+	char *name;
+	double val[5], tot[5] = { 0, 0, 0, 0, 0};
+
+	/* TODO: we need a function to properly draw a table, dynamic column */
+	wclear(win);
+
+	/* HEADER */
+	wprintw(win, "%-30s│ %6s │ %4s │ %4s │ %4s │ %4s │\n", "NAME", "KCAL",
+		"CARB", "FAT", "PROT", "FIBER");
+
+	/* TODO: Wrap this to a function as wprintww */
+	wchar_t header[winwidth+1];
+        swprintf(header, winwidth+1, L"%ls\n",
+                 L"──────────────────────────────┼────────┼──────┼──────┼────"
+                 L"──┼───────┤");
+        waddwstr(win, header);
+	/********************************************/
+
+	for (int i = start; i < limit; i++) {
+		name   = item[i].name;
+		val[0] = item[i].kcal;  /* 5 digits due to sum */
+		val[1] = item[i].carb;  /* 4 digits */
+		val[2] = item[i].fat;   /* 4 digits */
+		val[3] = item[i].prot;  /* 4 digits */
+		val[4] = item[i].fiber; /* 4 digits */
+
+		for (int i = 0; i < 5; i++)
+			tot[i] += val[i];
+
+		if (i == highlight) {
+			wattron(win, A_REVERSE);
+			wprintw(win, "%-30s│ %6.0lf │ %4.1lf │ %4.1lf │ %4.1lf │ %4.1lf  │\n", name,val[0],val[1],val[2],val[3],val[4]);
+			wattroff(win, A_REVERSE);
+			continue;
+		}
+		wprintw(win, "%-30s│ %6.0lf │ %4.1lf │ %4.1lf │ %4.1lf │ %4.1lf  │\n", name,val[0],val[1],val[2],val[3],val[4]);
+	}
+	/* footer */
+	waddwstr(win, header);
+	wprintw(win, "%-30s│ %6.0lf │ %4.1lf │ %4.1lf │ %4.1lf │ %4.1lf  │\n", "TOTAL",tot[0],tot[1],tot[2],tot[3],tot[4]);
+	/* refresh window to reflect changes */
 	wrefresh(win);
 }
 
@@ -274,14 +324,18 @@ getiteminfo(int *nline)
 int
 main(void)
 {
+	int numitems;
+	wint_t key = 1;
+
+	setlocale(LC_ALL, ""); /* enable long char before ncurses calls. */
 	initscr(); /* initialize ncurses: memory & clear screen */
 	noecho(); /* do not write keypresses to screen */
 	start_color(); /* enable color support */
 	initclrs(); /* initialize custom colors */
 	curs_set(0); /* cursor, 0: invis, 1: blinking, 2: solid */
+	ESCDELAY = 250; /* delay time in ms for esc key. */
+	keypad(stdscr, TRUE); /* enable keypad to avoid escape sequences */
 
-	char key = !NULL;
-	int numitems;
 
 	winprop winfo[N_WINDOWS];
 	WINDOW *win[N_WINDOWS];
@@ -289,7 +343,6 @@ main(void)
 
 	item[0] = getiteminfo(&numitems);
 	item[1] = (iteminfo *)malloc(numitems * sizeof(iteminfo));
-
 
 	/*                    no, height, width,             y, x, curline, start, nitem, hghtmenu */
 	winfo[0] = (winprop){ 0,  LINES,  WIN_0_WIDTH,       0, 0, 0,       0,     numitems, 0 };
@@ -307,31 +360,24 @@ main(void)
 	wrefresh(win[0]);
 	wrefresh(win[1]);
 
-	/* TODO: put this loop into a function, function should exit when '\t'
-	 * is given and update active variable. Therefore we can change to
-	 * another window this way.
-	*/
 
 	/* Initially draw the main window */
 	drawmenu(win[selwin], item[selwin], &winfo[selwin]);
 
-
+	/* TODO: put this loop into a function, function should exit when '\t'
+	 * is given and update active variable. Therefore we can change to
+	 * another window this way.
+	 */
 	while (key) {
 
 		key = getch();
-
-
-		#ifdef DEBUGGING
-		wclear(win[1]);
-		wprintw(win[1], "%d", key);
-		wrefresh(win[1]);
-		#endif
 
 		switch (key) {
 		case 'h':
 			break;
 		case 'j':
-		case KEYDOWN:
+		case KEY_DOWN:
+			/* Draw scrolling menu */
 			winfo[selwin].curline += 1;
 			winfo[selwin].menuh = (winfo[selwin].nitem > LINES) ? LINES : winfo[selwin].nitem;
 
@@ -339,10 +385,14 @@ main(void)
 				winfo[selwin].start = winfo[selwin].curline = 0;
 			else if (winfo[selwin].curline >= winfo[selwin].menuh + winfo[selwin].start)
 				winfo[selwin].start += winfo[selwin].menuh;
-			drawmenu(win[selwin], item[selwin], &winfo[selwin]);
+			if (selwin == 1)
+				drwmain(win[selwin], item[selwin], &winfo[selwin]);
+			else
+				drawmenu(win[selwin], item[selwin], &winfo[selwin]);
 			break;
 		case 'k':
-		case KEYUP:
+		case KEY_UP:
+			/* Draw scrolling menu */
 			winfo[selwin].curline -= 1;
 			winfo[selwin].menuh = (winfo[selwin].nitem >= LINES) ? LINES : winfo[selwin].nitem;
 
@@ -352,7 +402,10 @@ main(void)
 			} else if (winfo[selwin].curline < winfo[selwin].start)
 				winfo[selwin].start -= winfo[selwin].menuh;
 
-			drawmenu(win[selwin], item[selwin], &winfo[selwin]);
+			if (selwin == 1)
+				drwmain(win[selwin], item[selwin], &winfo[selwin]);
+			else
+				drawmenu(win[selwin], item[selwin], &winfo[selwin]);
 			break;
 		case 'l':
 			break;
@@ -375,16 +428,19 @@ main(void)
 		case KEYESC: /* FALLTHROUGH */
 		case 'q': /* FALLTHROUGH */
 		case 'Q':
-			key = '\0';
+			key = 0x0;
 			break;
 		case '\t':
-		case KEYLEFT:
-		case KEYRIGHT:
+		case KEY_LEFT:
+		case KEY_RIGHT:
 			tmp = selwin;
 			nextwin();
-			/* Refresh both windows */
+			/* Redraw last window without highlights*/
 			drawmenu(win[tmp], item[tmp], &winfo[tmp]);
-			drawmenu(win[selwin], item[selwin], &winfo[selwin]);
+			if (selwin == 1)
+				drwmain(win[selwin], item[selwin], &winfo[selwin]);
+			else
+				drawmenu(win[selwin], item[selwin], &winfo[selwin]);
 			break;
 		case '\n':
 		case KEYSPACE:
@@ -400,18 +456,20 @@ main(void)
 				winfo[1].menuh = (winfo[1].nitem >= LINES) ? LINES : winfo[1].nitem;
 
 				drawmenu(win[1], item[1], &winfo[1]);
-			}
+			} else if (selwin == 1)
+				/* TODO: on right window ask for how much grams,
+				 * then calculate values accordingly also write
+				 * 100gr initially */
+				break;
 			break;
 		default:
 			break;
 		}
 	}
-
 	delwin(win[0]);
 	delwin(win[1]);
 	endwin(); /* free memory, quit ncurses */
 	free(item[0]);
 	free(item[1]);
-
 	return 0;
 }
