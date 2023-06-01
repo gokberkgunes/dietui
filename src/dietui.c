@@ -1,11 +1,13 @@
+#include <limits.h>
+#include <locale.h>
 #include <ncurses.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <wchar.h>
-#include <locale.h>
 
 #define MAX(A, B) ((A) > (B) ? (A) : (B))
 #define MIN(A, B) ((A) < (B) ? (A) : (B))
@@ -142,8 +144,6 @@ delitem(iteminfo *item, winprop* winfo)
 	}
 }
 
-#include <stdarg.h>
-#include <limits.h>
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Function    :      nviswide
  *
