@@ -7,7 +7,6 @@ from autoscraper import AutoScraper
 url = "https://www.diyetkolik.com/kac-kalori/muzlu-kek"
 wanted_dict = {
                 "name":['Muzlu Kek'],
-                "kcal":['470          '],
                 "carb":['42.5155984349'],
                 "prot":['6.65013660836'],
                 "fat" :['20.760028451 '],

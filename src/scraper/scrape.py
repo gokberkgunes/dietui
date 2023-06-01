@@ -95,16 +95,20 @@ broken_names = [
             ]
 
 
+print("name,kcal,carb(g),prot(g),fat(g),fibr(g),chol(mg),sodi(mg),pota(mg),calc(mg),vitA(iu),vitC(mg),iron(mg)")
 for name in foodnames:
     url = f"https://www.diyetkolik.com/kac-kalori/{name}"
     res = getfooddata(url)
 
     # Insert the name after substituting the Turkish letters
-    data = [ turkish2ascii(list(res.values())[0][0]) ]
+    data = [ turkish2ascii(list(res.values())[0][0]), 0 ]
 
     # Insert the data into an array after rounding them.
     for val in list(res.values())[1:]:
         tmp = stepwise_round(val[0])
         data.append(tmp)
+
+    # Calculate kcal per 100g
+    data[1] = int((data[2]+data[3])*4 + data[4]*9)
 
     print(*data, sep=',')
