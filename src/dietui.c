@@ -142,6 +142,61 @@ delitem(iteminfo *item, winprop* winfo)
 	}
 }
 
+#include <stdarg.h>
+#include <limits.h>
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Function    :      nviswide
+ *
+ * Description :      Count visible wide and narrow characters for a
+ *                    printf-like input. This does not count bytes.
+ *                    Acts similar to snprintf(NULL, 0, fmt, args) but also
+ *                    takes wide chars. Written due to the lack of snwprintf.
+ *
+ * Arguments   :      const char *fmt: printf-like formatting
+ *                    ...: printf-like variadic arguments
+ *
+ * Return      :      Number of wide and narrow characters as int
+ *
+ * Error       :      Exits with -1 on failure, could be replaced to return -1.
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+int nvischr(const char *fmt, ...)
+{
+	va_list args, args2;
+	va_start(args, fmt);
+	va_copy(args2,args); /* We cannot use va twice */
+
+	/* CALCULATE THE LENGHT, WITHOUT '\0', OF FORMATTED STRING */
+	int len = vsnprintf(NULL, 0, fmt, args);
+	va_end(args);
+
+	if (len < 0) {
+		va_end(args2);
+		fprintf(stdout, "%s\n", "ERROR: formatting failed.");
+		exit(-1);
+	}
+
+	/* generate string and allocate the formatted string */
+	char tmp[len+1];
+	vsnprintf(tmp, len+1, fmt, args2);
+	va_end(args2);
+
+	size_t nvis = mbstowcs(NULL, tmp, 0);
+
+	/* As implied in the documentation, mbstowcs returns (size_t)-1 if an
+	 * invalid sequence given.
+	 */
+	if (nvis == (size_t)-1) {
+		fprintf(stdout, "%s\n", "ERROR: could not count wide chars.");
+		exit(1);
+	}
+
+	/* Usage of size_t is cumbersome, transform to int. */
+	if (nvis > INT_MAX) {
+		return INT_MAX;
+	}
+	return (int)nvis;
+}
+
 void
 drawmenu(WINDOW *win, iteminfo *item, winprop* winfo)
 {
