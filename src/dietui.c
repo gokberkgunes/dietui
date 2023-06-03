@@ -8,6 +8,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <wchar.h>
+#include <panel.h>
 
 #define MAX(A, B) ((A) > (B) ? (A) : (B))
 #define MIN(A, B) ((A) < (B) ? (A) : (B))
@@ -34,18 +35,23 @@
 #define CLR_GRY 15
 #define CLR_BG0 16
 #define CLR_BG1 17
+#define CLR_BG2 18
 
 #define KEYSPACE 32
 #define KEYDEL   80
 #define KEYESC   27
 
-static const int N_WINDOWS   = 2;
-static const int WIN_0_WIDTH = 30;
-static       int selwin      = 0;
-static       int tmp         = 0;
+static const int N_WINDOWS    = 2;
+static const int N_POPUPS     = 2;
+static const int WIN_0_WIDTH  = 30;
+static const int POPUP_0_H    = 10;
+static const int POPUP_0_W    = 30;
+static       int selwin       = 0;
+static       int tmp          = 0;
 
 typedef struct {
 	char name[31];
+	//double gram, kcal, carb, fat, prot, fiber;
 	double kcal, carb, fat, prot, fiber;
 } iteminfo;
 
@@ -72,8 +78,10 @@ initclrs(void)
 	init_color(CLR_GRY, 502, 502, 502);                /* #808080 */
 	init_color(CLR_BG0, 0x12 * 4, 0x12 * 4, 0x12 * 4); /* #121212 */
 	init_color(CLR_BG1, 0x1c * 4, 0x1c * 4, 0x1c * 4); /* #1c1c1c */
+	init_color(CLR_BG2, 0x2c * 4, 0x2c * 4, 0x2c * 4); /* #2c2c2c */
 	init_pair(1, COLOR_WHITE, CLR_BG0);
 	init_pair(2, COLOR_WHITE, CLR_BG1);
+	init_pair(3, COLOR_WHITE, CLR_BG2);
 }
 
 void
@@ -91,10 +99,6 @@ wmvcursor(WINDOW *win, winprop *winfo, int y, int x)
 
 	wmove(win, winfo->y, winfo->x);
 }
-
-
-
-
 
 
 /* Calculator of the window's index base on a distance variable.
@@ -228,7 +232,7 @@ drawmenu(WINDOW *win, iteminfo *item, winprop* winfo)
 	wrefresh(win);
 }
 
-void drwmain(WINDOW *win, iteminfo *item, winprop* winfo)
+void drawmain(WINDOW *win, iteminfo *item, winprop* winfo)
 {
 	int winwidth   =  winfo->w;
 	int start      = MAX(winfo->start, 0);
@@ -380,6 +384,7 @@ int
 main(void)
 {
 	int numitems;
+	char input[31];
 	wint_t key = 1;
 
 	setlocale(LC_ALL, ""); /* enable long char before ncurses calls. */
@@ -388,12 +393,14 @@ main(void)
 	start_color(); /* enable color support */
 	initclrs(); /* initialize custom colors */
 	curs_set(0); /* cursor, 0: invis, 1: blinking, 2: solid */
-	ESCDELAY = 250; /* delay time in ms for esc key. */
+	ESCDELAY = 250; /* delay time to 250 ms for esc key */
 	keypad(stdscr, TRUE); /* enable keypad to avoid escape sequences */
 
 
 	winprop winfo[N_WINDOWS];
+	winprop pinfo[N_POPUPS];
 	WINDOW *win[N_WINDOWS];
+	WINDOW *popup[N_POPUPS];
 	iteminfo *item[2];
 
 	item[0] = getiteminfo(&numitems);
@@ -401,14 +408,27 @@ main(void)
 
 	/*                    no, height, width,             y, x, curline, start, nitem, hghtmenu */
 	winfo[0] = (winprop){ 0,  LINES,  WIN_0_WIDTH,       0, 0, 0,       0,     numitems, 0 };
-	winfo[1] = (winprop){ 1,  LINES,  COLS - winfo[0].w, 0, 0, 0,       0,     0,       0 };
+	winfo[1] = (winprop){ 1,  LINES,  COLS - winfo[0].w, 0, winfo[0].w, 0,       0,     0,       0 };
+	pinfo[0] = (winprop){
+		2,                              // window number
+		POPUP_0_H,                      // height
+		POPUP_0_W,                      // width
+		(LINES-POPUP_0_H)/2,            // y coordinate
+		(WIN_0_WIDTH+COLS-POPUP_0_W)/2, // x coordinate
+		0,                              // current line number
+		0,                              // starting number
+		0,                              // number of items
+		0                               // is highlighted
+	};
 
-	win[0] = newwin(winfo[0].h, winfo[0].w, 0, 0);
-	win[1] = newwin(winfo[1].h, winfo[1].w, 0, winfo[0].w);
+	win[0] = newwin(winfo[0].h, winfo[0].w, winfo[0].y, winfo[0].x);
+	win[1] = newwin(winfo[1].h, winfo[1].w, winfo[1].y, winfo[1].x);
+	popup[0] = newwin(pinfo[0].h, pinfo[0].w, pinfo[0].y, pinfo[0].x);
 	winfo[selwin].menuh = (winfo[selwin].nitem > LINES) ? LINES : winfo[selwin].nitem;
 
 	wbkgd(win[0], COLOR_PAIR(1)); /* set color of win[0] */
 	wbkgd(win[1], COLOR_PAIR(2)); /* set color of win[1] */
+	wbkgd(popup[0], COLOR_PAIR(3));
 
 	/* We must call this after window decleration. */
 	refresh();
@@ -441,7 +461,7 @@ main(void)
 			else if (winfo[selwin].curline >= winfo[selwin].menuh + winfo[selwin].start)
 				winfo[selwin].start += winfo[selwin].menuh;
 			if (selwin == 1)
-				drwmain(win[selwin], item[selwin], &winfo[selwin]);
+				drawmain(win[selwin], item[selwin], &winfo[selwin]);
 			else
 				drawmenu(win[selwin], item[selwin], &winfo[selwin]);
 			break;
@@ -458,7 +478,7 @@ main(void)
 				winfo[selwin].start -= winfo[selwin].menuh;
 
 			if (selwin == 1)
-				drwmain(win[selwin], item[selwin], &winfo[selwin]);
+				drawmain(win[selwin], item[selwin], &winfo[selwin]);
 			else
 				drawmenu(win[selwin], item[selwin], &winfo[selwin]);
 			break;
@@ -493,7 +513,7 @@ main(void)
 			/* Redraw last window without highlights*/
 			drawmenu(win[tmp], item[tmp], &winfo[tmp]);
 			if (selwin == 1)
-				drwmain(win[selwin], item[selwin], &winfo[selwin]);
+				drawmain(win[selwin], item[selwin], &winfo[selwin]);
 			else
 				drawmenu(win[selwin], item[selwin], &winfo[selwin]);
 			break;
@@ -511,10 +531,61 @@ main(void)
 				winfo[1].menuh = (winfo[1].nitem >= LINES) ? LINES : winfo[1].nitem;
 
 				drawmenu(win[1], item[1], &winfo[1]);
-			} else if (selwin == 1)
+			} else if (selwin == 1) {
 				/* TODO: on right window ask for how much grams,
 				 * then calculate values accordingly also write
 				 * 100gr initially */
+
+				mvwprintw(popup[0], 1, 1, "%s", item[selwin][winfo[selwin].curline].name);
+				mvwprintw(popup[0], 2, 1, "How many grams?");
+				box(popup[0], 0, 0);
+
+				wattron(popup[0], COLOR_PAIR(1));  // Turn on the color pair for printing text
+				mvwprintw(popup[0], 4, 1, "%-*s", 5, "");
+
+				wmove(popup[0], 4, 1);
+				curs_set(1); /* cursor, 0: invis, 1: blinking, 2: solid */
+				/* set cursor to thin, works for st */
+				printf("\033[6 q");
+
+				wrefresh(popup[0]);
+
+				for (int i = 0, maxlen = 4;;) {
+					key = getch();
+
+					if (key == '\n' || key == 'q' ||
+					    key == KEYESC)
+						break;
+
+					if (i > 0 && key == KEY_BACKSPACE) {
+						//input[--i] = ' ';
+						input[--i] = '\0';
+						mvwprintw(popup[0], 4, 1,"%-*s", i+1, input);
+						wmove(popup[0], 4, 1+i);
+						//wclear(popup[0]);
+						wrefresh(popup[0]);
+						continue;
+					} else if (i == maxlen) {
+						//input[--i] = '\0';
+						continue;
+					}
+
+					if (key >= '0' && key <= '9') {
+						input[i]   = key;
+						input[++i] = '\0';
+						mvwprintw(popup[0], 4, 1,"%s", input);
+						wrefresh(popup[0]);
+						continue;
+					}
+				}
+
+				wattroff(popup[0], COLOR_PAIR(1)); // Turn off the color pair
+				wclear(popup[0]);
+				curs_set(0); /* hide cursor */
+				/* Redraw the old window */
+				drawmain(win[1], item[1], &winfo[1]);
+			}
+
 				break;
 			break;
 		default:
