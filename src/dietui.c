@@ -8,7 +8,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <wchar.h>
-#include <panel.h>
 
 #define MAX(A, B) ((A) > (B) ? (A) : (B))
 #define MIN(A, B) ((A) < (B) ? (A) : (B))
