@@ -364,7 +364,7 @@ getiteminfo(int *nline)
 	char *filedata[*nline];
 
 	for (int j = 0; j < *nline; j++)
-		filedata[j] = (char *)malloc(200 * sizeof(char));
+		filedata[j] = malloc(200 * sizeof(char));
 
 	char **ptr = filedata;
 	readlines(*nline, &ptr, &bufsize, fp);
