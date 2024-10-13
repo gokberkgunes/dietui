@@ -42,7 +42,7 @@
 
 static const int N_WINDOWS    = 2;
 static const int N_POPUPS     = 2;
-static const int WIN_0_WIDTH  = 30;
+static const int WIN_0_WIDTH  = 20;
 static const int POPUP_0_H    = 10;
 static const int POPUP_0_W    = 30;
 static       int selwin       = 0;
@@ -51,7 +51,7 @@ static       int tmp          = 0;
 typedef struct {
 	char name[31];
 	//double gram, kcal, carb, fat, prot, fiber;
-	double kcal, carb, fat, prot, fiber;
+	double weight, kcal, carb, fat, prot, fiber;
 } iteminfo;
 
 typedef struct {
@@ -97,6 +97,18 @@ wmvcursor(WINDOW *win, winprop *winfo, int y, int x)
 		winfo->y = MAX(winfo->y + y, 0);
 
 	wmove(win, winfo->y, winfo->x);
+}
+
+int
+chr_array_to_num(char array[], int size)
+{
+	int result = 0;
+	int num = 0;
+	for (int i = 0; i < size && array[i] != '\0' ; i++) {
+		num = array[i] - '0';
+		result += num*(10*(i+1));
+	}
+	return num;
 }
 
 
@@ -147,6 +159,19 @@ delitem(iteminfo *item, winprop* winfo)
 	}
 }
 
+void
+moditem(iteminfo *item, long number)
+{
+	double weight_ratio = number/item->weight;
+
+	item->weight = number;
+	item->kcal   = item->kcal*weight_ratio;
+	item->carb   = item->carb*weight_ratio;
+	item->fat    = item->fat*weight_ratio;
+	item->prot   = item->prot*weight_ratio;
+	item->fiber  = item->fiber*weight_ratio;
+}
+
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Function    :      nviswide
  *
@@ -168,7 +193,7 @@ int nvischr(const char *fmt, ...)
 	va_start(args, fmt);
 	va_copy(args2,args); /* We cannot use va twice */
 
-	/* CALCULATE THE LENGHT, WITHOUT '\0', OF FORMATTED STRING */
+	/* CALCULATE THE LENGTH, WITHOUT '\0', OF FORMATTED STRING */
 	int len = vsnprintf(NULL, 0, fmt, args);
 	va_end(args);
 
@@ -203,7 +228,7 @@ int nvischr(const char *fmt, ...)
 void
 drawmenu(WINDOW *win, iteminfo *item, winprop* winfo)
 {
-	int winwidth   =  winfo->w;
+	int winwidth   = winfo->w;
 	int start      = MAX(winfo->start, 0);
 	int highlight  = (selwin == winfo->index) ? winfo->curline : -1;
 	int menuheight = winfo->menuh;
@@ -233,7 +258,7 @@ drawmenu(WINDOW *win, iteminfo *item, winprop* winfo)
 
 void drawmain(WINDOW *win, iteminfo *item, winprop* winfo)
 {
-	int winwidth   =  winfo->w;
+	int winwidth   = winfo->w;
 	int start      = MAX(winfo->start, 0);
 	int highlight  = (selwin == winfo->index) ? winfo->curline : -1;
 	int menuheight = winfo->menuh;
@@ -249,16 +274,15 @@ void drawmain(WINDOW *win, iteminfo *item, winprop* winfo)
 	wclear(win);
 
 	/* HEADER */
-	wprintw(win, "%-30s│ %6s │ %4s │ %4s │ %4s │ %4s │\n", "NAME", "KCAL",
+	wprintw(win, "%-20s│ %4s │ %6s │ %4s │ %4s │ %4s │ %4s │\n", "NAME", "GRAM", "KCAL",
 		"CARB", "FAT", "PROT", "FIBER");
 
 	/* TODO: Wrap this to a function as wprintww */
 	wchar_t header[winwidth+1];
         swprintf(header, winwidth+1, L"%ls\n",
-                 L"──────────────────────────────┼────────┼──────┼──────┼────"
-                 L"──┼───────┤");
+		 L"────────────────────┼──────┼────────┼──────┼──────┼────"
+		 L"──┼───────┤");
         waddwstr(win, header);
-	/********************************************/
 
 	for (int i = start; i < limit; i++) {
 		name   = item[i].name;
@@ -273,15 +297,15 @@ void drawmain(WINDOW *win, iteminfo *item, winprop* winfo)
 
 		if (i == highlight) {
 			wattron(win, A_REVERSE);
-			wprintw(win, "%-30s│ %6.0lf │ %4.1lf │ %4.1lf │ %4.1lf │ %4.1lf  │\n", name,val[0],val[1],val[2],val[3],val[4]);
+			wprintw(win, "%-20s│ %4.0lf │ %6.0lf │ %4.0lf │ %4.0lf │ %4.0lf │ %4.0lf  │\n", name, item[i].weight, val[0],val[1],val[2],val[3],val[4]);
 			wattroff(win, A_REVERSE);
 			continue;
 		}
-		wprintw(win, "%-30s│ %6.0lf │ %4.1lf │ %4.1lf │ %4.1lf │ %4.1lf  │\n", name,val[0],val[1],val[2],val[3],val[4]);
+		wprintw(win, "%-20s│ %4.0lf │ %6.0lf │ %4.0lf │ %4.0lf │ %4.0lf │ %4.0lf  │\n", name,item[i].weight,val[0],val[1],val[2],val[3],val[4]);
 	}
 	/* footer */
 	waddwstr(win, header);
-	wprintw(win, "%-30s│ %6.0lf │ %4.1lf │ %4.1lf │ %4.1lf │ %4.1lf  │\n", "TOTAL",tot[0],tot[1],tot[2],tot[3],tot[4]);
+	wprintw(win, "%-27s│ %6.0lf │ %4.0lf │ %4.0lf │ %4.0lf │ %4.0lf  │\n", "TOTAL",tot[0],tot[1],tot[2],tot[3],tot[4]);
 	/* refresh window to reflect changes */
 	wrefresh(win);
 }
@@ -332,10 +356,12 @@ void
 getitemdata(iteminfo *f, char **str, int nlines)
 {
 	/* go through file to set data */
-	for (int i = 0; i < nlines; i++)
+	for (int i = 0; i < nlines; i++) {
 		sscanf(str[i], "%30[^,],%lf,%lf,%lf,%lf,%lf", f[i].name,
 		       &f[i].kcal, &f[i].carb, &f[i].fat, &f[i].prot,
 		       &f[i].fiber);
+		f[i].weight = 100; // Set initial weight to 100gr.
+	}
 }
 
 iteminfo *
@@ -384,6 +410,7 @@ main(void)
 {
 	int numitems;
 	char input[31];
+	long number;
 	wint_t key = 1;
 
 	setlocale(LC_ALL, ""); /* enable long char before ncurses calls. */
@@ -577,6 +604,9 @@ main(void)
 						continue;
 					}
 				}
+				number = strtol(input, NULL, 10);
+				if (number > 0)
+					moditem(&item[1][winfo[1].curline], number);
 
 				wattroff(popup[0], COLOR_PAIR(1)); // Turn off the color pair
 				wclear(popup[0]);
@@ -584,8 +614,6 @@ main(void)
 				/* Redraw the old window */
 				drawmain(win[1], item[1], &winfo[1]);
 			}
-
-				break;
 			break;
 		default:
 			break;
