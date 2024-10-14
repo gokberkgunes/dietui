@@ -47,7 +47,11 @@ static const int POPUP_0_H    = 10;
 static const int POPUP_0_W    = 30;
 static       int selwin       = 0;
 static       int tmp          = 0;
-             int nfood; // number of food, or nline in foods
+             int CHARSIZE     = 3; // strlen("─"); // ─ is 3 bytes long.
+             int NFOOD;            // number of food, or nline in foods
+
+// box drawing chracter. 40 ch long since printf will format it.
+const char BOXCHR[] = "────────────────────────────────────────";
 
 typedef struct {
 	char name[31];
@@ -257,6 +261,72 @@ drawmenu(WINDOW *win, iteminfo *item, winprop* winfo)
 	wrefresh(win);
 }
 
+void
+draw_menu_header(WINDOW *win, unsigned int len[7])
+{
+
+	wprintw(win, "%-*s│%*s│%*s│%*s│%*s│%*s│%*s│\n",
+		len[0], "NAME",
+		len[1], "GRAM",
+		len[2], "KCAL",
+		len[3], "CARB",
+		len[4], "FAT",
+		len[5], "PROT",
+		len[6], "FIBER"
+	);
+
+	wprintw(win, "%-.*s┼%.*s┼%.*s┼%.*s┼%.*s┼%.*s┼%.*s┤\n",
+		len[0]*CHARSIZE, BOXCHR,
+		len[1]*CHARSIZE, BOXCHR,
+		len[2]*CHARSIZE, BOXCHR,
+		len[3]*CHARSIZE, BOXCHR,
+		len[4]*CHARSIZE, BOXCHR,
+		len[5]*CHARSIZE, BOXCHR,
+		len[6]*CHARSIZE, BOXCHR
+	);
+}
+void
+draw_menu_item(WINDOW *win, iteminfo item, int highlight, unsigned int len[7])
+{
+	if (highlight)
+		wattron(win, A_REVERSE);
+	wprintw(win, "%-*s│%*.0lf│%*.0lf│%*.0lf│%*.0lf│%*.0lf│%*.0lf│\n",
+		len[0], item.name,
+		len[1], item.weight,
+		len[2], item.kcal,
+		len[3], item.carb,
+		len[4], item.fat,
+		len[5], item.prot,
+		len[6], item.fiber
+	);
+	wattroff(win, A_REVERSE);
+}
+
+void
+draw_menu_footer(WINDOW *win, unsigned int len[7], double total[5])
+{
+
+	wprintw(win, "%-.*s┴%.*s┼%.*s┼%.*s┼%.*s┼%.*s┼%.*s┤\n",
+		len[0]*CHARSIZE, BOXCHR,
+		len[1]*CHARSIZE, BOXCHR,
+		len[2]*CHARSIZE, BOXCHR,
+		len[3]*CHARSIZE, BOXCHR,
+		len[4]*CHARSIZE, BOXCHR,
+		len[5]*CHARSIZE, BOXCHR,
+		len[6]*CHARSIZE, BOXCHR
+	);
+
+	wprintw(win, "%-*s│%*.0lf│%*.0lf│%*.0lf│%*.0lf│%*.0lf│\n",
+		len[0]+len[1]+1, "TOTAL",
+		len[2],          total[0],
+		len[3],          total[1],
+		len[4],          total[2],
+		len[5],          total[3],
+		len[6],          total[4]
+	);
+}
+
+
 void drawmain(WINDOW *win, iteminfo *item, winprop* winfo)
 {
 	int winwidth   = winfo->w;
@@ -268,45 +338,26 @@ void drawmain(WINDOW *win, iteminfo *item, winprop* winfo)
 	int limit = MIN((start+menuheight), nitem); /* ensure list fits */
 
 	/* iteminfo's variables */
-	char *name;
-	double val[5], tot[5] = { 0, 0, 0, 0, 0};
+	double total[5] = {0, 0, 0, 0, 0};
+	// space, weight, kcal, carb, protein, fiber
+	unsigned int print_len[7] = {20, 6, 6, 5, 4, 4, 6};
 
 	/* TODO: we need a function to properly draw a table, dynamic column */
 	wclear(win);
 
 	/* HEADER */
-	wprintw(win, "%-20s│ %4s │ %6s │ %4s │ %4s │ %4s │ %4s │\n", "NAME", "GRAM", "KCAL",
-		"CARB", "FAT", "PROT", "FIBER");
-
-	/* TODO: Wrap this to a function as wprintww */
-	wchar_t header[winwidth+1];
-        swprintf(header, winwidth+1, L"%ls\n",
-		 L"────────────────────┼──────┼────────┼──────┼──────┼────"
-		 L"──┼───────┤");
-        waddwstr(win, header);
+	draw_menu_header(win, print_len);
 
 	for (int i = start; i < limit; i++) {
-		name   = item[i].name;
-		val[0] = item[i].kcal;  /* 5 digits due to sum */
-		val[1] = item[i].carb;  /* 4 digits */
-		val[2] = item[i].fat;   /* 4 digits */
-		val[3] = item[i].prot;  /* 4 digits */
-		val[4] = item[i].fiber; /* 4 digits */
-
-		for (int i = 0; i < 5; i++)
-			tot[i] += val[i];
-
-		if (i == highlight) {
-			wattron(win, A_REVERSE);
-			wprintw(win, "%-20s│ %4.0lf │ %6.0lf │ %4.0lf │ %4.0lf │ %4.0lf │ %4.0lf  │\n", name, item[i].weight, val[0],val[1],val[2],val[3],val[4]);
-			wattroff(win, A_REVERSE);
-			continue;
-		}
-		wprintw(win, "%-20s│ %4.0lf │ %6.0lf │ %4.0lf │ %4.0lf │ %4.0lf │ %4.0lf  │\n", name,item[i].weight,val[0],val[1],val[2],val[3],val[4]);
+		total[0] += item[i].kcal;  /* 5 digits due to sum */
+		total[1] += item[i].carb;  /* 4 digits */
+		total[2] += item[i].fat;   /* 4 digits */
+		total[3] += item[i].prot;  /* 4 digits */
+		total[4] += item[i].fiber; /* 4 digits */
+		draw_menu_item(win, item[i], i == highlight, print_len);
 	}
 	/* footer */
-	waddwstr(win, header);
-	wprintw(win, "%-27s│ %6.0lf │ %4.0lf │ %4.0lf │ %4.0lf │ %4.0lf  │\n", "TOTAL",tot[0],tot[1],tot[2],tot[3],tot[4]);
+	draw_menu_footer(win, print_len, total);
 	/* refresh window to reflect changes */
 	wrefresh(win);
 }
@@ -366,12 +417,11 @@ getitemdata(iteminfo *f, char **str, int nlines)
 }
 
 iteminfo*
-readfoodfile()
+readfoodfile(void)
 {
 	FILE *fp = NULL;
 	size_t bufsize = 100; /* initial malloc string length */
 
-	/* Initialization of disk statistics */
 	fp = fopen("./data", "r");
 	if (fp == NULL) {
 		endwin(); /* free memory, quit ncurses */
@@ -380,26 +430,26 @@ readfoodfile()
 	}
 
 	/* count number of lines in the file, minus the header */
-	nfood = countlines(fp) - 1;
+	NFOOD = countlines(fp) - 1;
 
-	iteminfo *item = (iteminfo *)malloc(nfood * sizeof(iteminfo));
+	iteminfo *item = (iteminfo *)malloc(NFOOD * sizeof(iteminfo));
 
 	/* seek back to start of the file */
 	fseek(fp, 0, SEEK_SET);
 
 	/* Generate data structure to hold file's contents */
-	char *filedata[nfood];
+	char *filedata[NFOOD];
 
-	for (int j = 0; j < nfood; j++)
+	for (int j = 0; j < NFOOD; j++)
 		filedata[j] = malloc(200 * sizeof(char));
 
 	char **ptr = filedata;
-	readlines(nfood, &ptr, &bufsize, fp);
+	readlines(NFOOD, &ptr, &bufsize, fp);
 
-	getitemdata(item, filedata, nfood);
+	getitemdata(item, filedata, NFOOD);
 
 	/* free dynamically allocated memories used by getline call */
-	for (int j = 0; j < nfood; j++)
+	for (int j = 0; j < NFOOD; j++)
 		free(filedata[j]);
 	fclose(fp);
 
@@ -430,10 +480,10 @@ main(void)
 	iteminfo *item[2];
 
 	item[0] = readfoodfile();
-	item[1] = (iteminfo *)malloc(nfood * sizeof(iteminfo));
+	item[1] = (iteminfo *)malloc(NFOOD * sizeof(iteminfo));
 
 	/*                    no, height, width,           y, x,          curline, start, nitem, hghtmenu */
-	winfo[0] = (winprop){ 0,  LINES,  WIN_0_WIDTH,     0, 0,          0,       0,     nfood, 0 };
+	winfo[0] = (winprop){ 0,  LINES,  WIN_0_WIDTH,     0, 0,          0,       0,     NFOOD, 0 };
 	winfo[1] = (winprop){ 1,  LINES,  COLS-winfo[0].w, 0, winfo[0].w, 0,       0,     0,     0 };
 	pinfo[0] = (winprop){
 		2,                              // window number
@@ -546,8 +596,8 @@ main(void)
 		case '\n':
 		case KEYSPACE:
 			if (selwin == 0) {
-				/* Only allow to increase nitems to nfood */
-				if (winfo[1].nitem < nfood)
+				/* Only allow to increase nitems to NFOOD */
+				if (winfo[1].nitem < NFOOD)
 					winfo[1].nitem++;
 
 				/* copy selected data */
