@@ -47,6 +47,7 @@ static const int POPUP_0_H    = 10;
 static const int POPUP_0_W    = 30;
 static       int selwin       = 0;
 static       int tmp          = 0;
+             int nfood; // number of food, or nline in foods
 
 typedef struct {
 	char name[31];
@@ -364,8 +365,8 @@ getitemdata(iteminfo *f, char **str, int nlines)
 	}
 }
 
-iteminfo *
-getiteminfo(int *nline)
+iteminfo*
+readfoodfile()
 {
 	FILE *fp = NULL;
 	size_t bufsize = 100; /* initial malloc string length */
@@ -379,26 +380,26 @@ getiteminfo(int *nline)
 	}
 
 	/* count number of lines in the file, minus the header */
-	*nline = countlines(fp) - 1;
+	nfood = countlines(fp) - 1;
 
-	iteminfo *item = (iteminfo *)malloc(*nline * sizeof(iteminfo));
+	iteminfo *item = (iteminfo *)malloc(nfood * sizeof(iteminfo));
 
 	/* seek back to start of the file */
 	fseek(fp, 0, SEEK_SET);
 
 	/* Generate data structure to hold file's contents */
-	char *filedata[*nline];
+	char *filedata[nfood];
 
-	for (int j = 0; j < *nline; j++)
+	for (int j = 0; j < nfood; j++)
 		filedata[j] = malloc(200 * sizeof(char));
 
 	char **ptr = filedata;
-	readlines(*nline, &ptr, &bufsize, fp);
+	readlines(nfood, &ptr, &bufsize, fp);
 
-	getitemdata(item, filedata, *nline);
+	getitemdata(item, filedata, nfood);
 
 	/* free dynamically allocated memories used by getline call */
-	for (int j = 0; j < *nline; j++)
+	for (int j = 0; j < nfood; j++)
 		free(filedata[j]);
 	fclose(fp);
 
@@ -408,7 +409,6 @@ getiteminfo(int *nline)
 int
 main(void)
 {
-	int numitems;
 	char input[31];
 	long number;
 	wint_t key = 1;
@@ -429,12 +429,12 @@ main(void)
 	WINDOW *popup[N_POPUPS];
 	iteminfo *item[2];
 
-	item[0] = getiteminfo(&numitems);
-	item[1] = (iteminfo *)malloc(numitems * sizeof(iteminfo));
+	item[0] = readfoodfile();
+	item[1] = (iteminfo *)malloc(nfood * sizeof(iteminfo));
 
-	/*                    no, height, width,             y, x, curline, start, nitem, hghtmenu */
-	winfo[0] = (winprop){ 0,  LINES,  WIN_0_WIDTH,       0, 0, 0,       0,     numitems, 0 };
-	winfo[1] = (winprop){ 1,  LINES,  COLS - winfo[0].w, 0, winfo[0].w, 0,       0,     0,       0 };
+	/*                    no, height, width,           y, x,          curline, start, nitem, hghtmenu */
+	winfo[0] = (winprop){ 0,  LINES,  WIN_0_WIDTH,     0, 0,          0,       0,     nfood, 0 };
+	winfo[1] = (winprop){ 1,  LINES,  COLS-winfo[0].w, 0, winfo[0].w, 0,       0,     0,     0 };
 	pinfo[0] = (winprop){
 		2,                              // window number
 		POPUP_0_H,                      // height
@@ -546,8 +546,8 @@ main(void)
 		case '\n':
 		case KEYSPACE:
 			if (selwin == 0) {
-				/* Only allow to increase nitems to numitems */
-				if (winfo[1].nitem < numitems)
+				/* Only allow to increase nitems to nfood */
+				if (winfo[1].nitem < nfood)
 					winfo[1].nitem++;
 
 				/* copy selected data */
