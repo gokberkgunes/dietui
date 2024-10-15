@@ -329,7 +329,6 @@ draw_menu_footer(WINDOW *win, unsigned int len[7], double total[5])
 
 void drawmain(WINDOW *win, iteminfo *item, winprop* winfo)
 {
-	int winwidth   = winfo->w;
 	int start      = MAX(winfo->start, 0);
 	int highlight  = (selwin == winfo->index) ? winfo->curline : -1;
 	int menuheight = winfo->menuh;
@@ -363,11 +362,21 @@ void drawmain(WINDOW *win, iteminfo *item, winprop* winfo)
 }
 
 void
-copyitem(iteminfo *allitem, iteminfo *saveditem, int highlight, int n_saved)
+copyitem(iteminfo *all, iteminfo *saved, winprop *winall, winprop *winsaved)
 {
-	memcpy(&saveditem[n_saved], &allitem[highlight], sizeof(iteminfo));
-}
+	/* Check if name2add is in saved items. */
+	for (int i = 0; i < winsaved->nitem; i++)
+	       if (!strcmp(saved[i].name, all[winall->curline].name))
+		       return;
 
+	/* If we found no duplicates: Add the new item, then increase number of
+	 * items. No need to check for number of items exceeds the total number
+	 * since there are no duplicates.
+	 */
+	memcpy(&saved[winsaved->nitem++], &all[winall->curline], sizeof(iteminfo));
+	/* Increase menu size to number of items in it */
+	winsaved->menuh = (winsaved->nitem >= LINES) ? LINES : winsaved->nitem;
+}
 int
 countlines(FILE *fpath)
 {
@@ -596,16 +605,8 @@ main(void)
 		case '\n':
 		case KEYSPACE:
 			if (selwin == 0) {
-				/* Only allow to increase nitems to NFOOD */
-				if (winfo[1].nitem < NFOOD)
-					winfo[1].nitem++;
-
 				/* copy selected data */
-				copyitem(item[0], item[1], winfo[0].curline, winfo[1].nitem - 1);
-
-				/* Calculate required height of the menu */
-				winfo[1].menuh = (winfo[1].nitem >= LINES) ? LINES : winfo[1].nitem;
-
+				copyitem(item[0], item[1], &winfo[0], &winfo[1]);
 				drawmenu(win[1], item[1], &winfo[1]);
 			} else if (selwin == 1) {
 				/* TODO: on right window ask for how much grams,
